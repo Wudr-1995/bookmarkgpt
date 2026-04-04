@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BookmarkGPT</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      width: 380px;
+      min-height: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #F9FAFB;
+      color: #1F2937;
+    }
+
+    .header {
+      background: white;
+      border-bottom: 1px solid #E5E7EB;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header img {
+      width: 28px;
+      height: 28px;
+    }
+
+    .header h1 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .content {
+      padding: 16px;
+    }
+
+    .page-info {
+      background: white;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .page-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 4px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .page-url {
+      font-size: 11px;
+      color: #9CA3AF;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .summary-box {
+      background: white;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .summary-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6B7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ai-badge {
+      background: linear-gradient(135deg, #667EEA, #764BA2);
+      color: white;
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .summary-text {
+      font-size: 13px;
+      color: #374151;
+      line-height: 1.5;
+      min-height: 48px;
+      max-height: 96px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .summary-text::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 24px;
+      background: linear-gradient(transparent, #fff);
+    }
+
+    .summary-text.expanded::after { display: none; }
+    .summary-text.expanded { max-height: none; }
+
+    .summary-loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #9CA3AF;
+      font-size: 13px;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #E5E7EB;
+      border-top-color: #667EEA;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .tags-input {
+      background: white;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .tags-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6B7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .tag-input {
+      width: 100%;
+      border: 1px solid #E5E7EB;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .tag-input:focus { border-color: #667EEA; }
+
+    .tag-hint {
+      font-size: 11px;
+      color: #9CA3AF;
+      margin-top: 6px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667EEA, #764BA2);
+      color: white;
+    }
+
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      background: white;
+      border: 1px solid #E5E7EB;
+      color: #6B7280;
+    }
+
+    .btn-secondary:hover { background: #F9FAFB; }
+
+    .saved-view {
+      text-align: center;
+      padding: 24px 16px;
+    }
+
+    .saved-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #10B981, #059669);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+    }
+
+    .saved-icon svg { width: 24px; height: 24px; color: white; }
+
+    .saved-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 4px;
+    }
+
+    .saved-subtitle {
+      font-size: 13px;
+      color: #9CA3AF;
+    }
+
+    .error {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #DC2626;
+      margin-bottom: 12px;
+    }
+
+    .expand-btn {
+      font-size: 11px;
+      color: #667EEA;
+      cursor: pointer;
+      margin-top: 4px;
+      display: inline-block;
+    }
+
+    .expand-btn:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="8" fill="url(#grad)"/>
+      <path d="M8 10.5C8 9.12 9.12 8 10.5 8h7C18.88 8 20 9.12 20 10.5v7c0 1.38-1.12 2.5-2.5 2.5h-7A2.5 2.5 0 018 17.5v-7z" stroke="white" stroke-width="1.5" fill="none"/>
+      <path d="M11 12h6M11 15h4" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      <defs>
+        <linearGradient id="grad" x1="0" y1="0" x2="28" y2="28">
+          <stop offset="0%" stop-color="#667EEA"/>
+          <stop offset="100%" stop-color="#764BA2"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <h1>BookmarkGPT</h1>
+  </div>
+
+  <div class="content" id="main-view">
+    <div class="page-info">
+      <div class="page-title" id="page-title">Loading...</div>
+      <div class="page-url" id="page-url"></div>
+    </div>
+
+    <div class="summary-box">
+      <div class="summary-label">
+        AI Summary
+        <span class="ai-badge">GEMINI NANO</span>
+      </div>
+      <div id="summary-content">
+        <div class="summary-loading">
+          <div class="spinner"></div>
+          Generating summary...
+        </div>
+      </div>
+    </div>
+
+    <div class="tags-input">
+      <label class="tags-label">Tags (comma separated)</label>
+      <input type="text" class="tag-input" id="tag-input" placeholder="e.g. AI, productivity, design">
+      <div class="tag-hint">Chrome AI generates relevant tags automatically</div>
+    </div>
+
+    <div id="error-container"></div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="save-btn" disabled>
+        Save Bookmark
+      </button>
+    </div>
+  </div>
+
+  <div class="content saved-view" id="saved-view" style="display:none">
+    <div class="saved-icon">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg>
+    </div>
+    <div class="saved-title">Bookmark Saved!</div>
+    <div class="saved-subtitle" id="saved-count">1 bookmark saved</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
