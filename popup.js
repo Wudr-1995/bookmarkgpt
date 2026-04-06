@@ -4,6 +4,7 @@
 let currentTab = null;
 let generatedSummary = '';
 let generatedTags = '';
+let pendingBookmark = null;
 
 // Elements
 const pageTitleEl = document.getElementById('page-title');
@@ -22,15 +23,26 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   try {
+    // Check for pending bookmark from keyboard shortcut
+    const pending = await chrome.storage.local.get(['pendingBookmark']);
+    if (pending.pendingBookmark) {
+      pendingBookmark = pending.pendingBookmark;
+      await chrome.storage.local.remove(['pendingBookmark']);
+    }
+
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     currentTab = tab;
 
-    pageTitleEl.textContent = tab.title || 'Untitled';
-    pageUrlEl.textContent = tab.url || '';
+    // Use pending bookmark if available (from keyboard shortcut)
+    const title = pendingBookmark?.title || tab.title || 'Untitled';
+    const url = pendingBookmark?.url || tab.url || '';
+
+    pageTitleEl.textContent = title;
+    pageUrlEl.textContent = url;
 
     // Generate AI summary
-    await generateSummary(tab);
+    await generateSummary({ title, url, tab });
 
     // Load existing bookmarks count
     updateSavedCount();
@@ -40,7 +52,7 @@ async function init() {
   }
 }
 
-async function generateSummary(tab) {
+async function generateSummary(pageInfo) {
   try {
     // Check if Chrome's built-in AI is available
     let summary = '';
@@ -58,8 +70,8 @@ Format your response as:
 SUMMARY: [your summary here]
 TAGS: [tag1, tag2, tag3]
 
-Page title: ${tab.title}
-Page URL: ${tab.url}`;
+Page title: ${pageInfo.title}
+Page URL: ${pageInfo.url}`;
 
       const result = await session.prompt(prompt);
       session.destroy();
@@ -72,16 +84,14 @@ Page URL: ${tab.url}`;
       tags = tagsMatch ? tagsMatch[1].trim() : '';
 
       if (!summary) {
-        // Fallback: try to extract from the result directly
         const lines = result.split('\n').filter(l => l.trim() && !l.startsWith('TAGS'));
         summary = lines.join(' ').trim();
       }
     } else {
       // Fallback: extractive summary from title
-      summary = `This bookmark captures content from "${tab.title}". The page is located at ${new URL(tab.url).hostname} and has been saved for later reference.`;
+      summary = `This bookmark captures content from "${pageInfo.title}". The page is located at ${new URL(pageInfo.url).hostname} and has been saved for later reference.`;
       
-      // Extract simple tags from URL and title
-      const words = (tab.title + ' ' + tab.url).split(/\s+/)
+      const words = (pageInfo.title + ' ' + pageInfo.url).split(/\s+/)
         .filter(w => w.length > 4)
         .filter(w => !/^(https?|www|com|org|net|io)$/i.test(w))
         .slice(0, 5);
@@ -108,16 +118,14 @@ Page URL: ${tab.url}`;
   } catch (err) {
     console.error('AI summary failed:', err);
     
-    // Fallback summary
-    generatedSummary = `Bookmark for "${currentTab.title}". Saved from ${currentTab.url}`;
+    generatedSummary = `Bookmark for "${currentTab?.title || 'Untitled'}". Saved from ${currentTab?.url || ''}`;
     summaryContentEl.innerHTML = `
       <div class="summary-text">${escapeHtml(generatedSummary)}</div>
     `;
     saveBtnEl.disabled = false;
     
-    // Try to extract tags from URL
     try {
-      const url = new URL(currentTab.url);
+      const url = new URL(currentTab?.url || 'https://example.com');
       const keywords = url.hostname.replace('www.', '').split('.');
       tagInputEl.value = keywords.filter(w => w.length > 2).slice(0, 3).join(', ');
     } catch {}
@@ -130,31 +138,31 @@ function toggleSummary(btn) {
   btn.textContent = textEl.classList.contains('expanded') ? 'Show less' : 'Show more';
 }
 
-// Make toggleSummary available globally
 window.toggleSummary = toggleSummary;
 
 async function saveBookmark() {
-  if (!currentTab) return;
+  const url = pendingBookmark?.url || currentTab?.url;
+  const title = pendingBookmark?.title || currentTab?.title;
+  
+  if (!url) return;
 
   saveBtnEl.disabled = true;
   saveBtnEl.textContent = 'Saving...';
 
   const bookmark = {
     id: Date.now().toString(),
-    url: currentTab.url,
-    title: currentTab.title,
+    url: url,
+    title: title,
     summary: generatedSummary,
     tags: tagInputEl.value.split(',').map(t => t.trim()).filter(Boolean),
     createdAt: new Date().toISOString(),
-    favicon: currentTab.favIconUrl || null
+    favicon: currentTab?.favIconUrl || null
   };
 
   try {
-    // Get existing bookmarks
     const result = await chrome.storage.local.get(['bookmarks']);
     const bookmarks = result.bookmarks || [];
     
-    // Check for duplicate
     const exists = bookmarks.some(b => b.url === bookmark.url);
     if (exists) {
       showError('This page is already bookmarked!');
@@ -163,16 +171,13 @@ async function saveBookmark() {
       return;
     }
 
-    // Add new bookmark
-    bookmarks.unshift(bookmark); // Add to beginning
+    bookmarks.unshift(bookmark);
     await chrome.storage.local.set({ bookmarks });
 
-    // Show success view
     mainViewEl.style.display = 'none';
     savedViewEl.style.display = 'block';
     savedCountEl.textContent = `${bookmarks.length} bookmark${bookmarks.length > 1 ? 's' : ''} saved`;
 
-    // Close popup after delay
     setTimeout(() => window.close(), 1500);
 
   } catch (err) {
